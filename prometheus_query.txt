@@ -1,0 +1,115 @@
+# spark instances status
+up
+
+# heap usage % per instance (idle and used, idle will be low like 7-8%)
+100 * jvm_memory_heap_used_bytes / jvm_memory_heap_max_bytes
+
+# raw heap used in MB (heap memory of each instance - heap is process + overhead)
+jvm_memory_heap_used_bytes / 1024 / 1024
+
+# GC
+jvm_gc_collection_seconds_sum
+jvm_gc_collection_seconds_count
+
+# thread count
+jvm_threads_ThreadCount
+
+# off-heap memory for i/o (transfering data between nodes, serializing, netty, shuffle)
+jvm_buffer_pool_capacity_bytes
+
+# useful during job how much of that direct buffer is actively being used for data transfer
+# it spikes during shuffle operations when workers are exchanging data with each other.
+jvm_buffer_pool_used_bytes{pool="direct"}
+
+# Process CPU % (JVM process only - CPU % used by this JVM process relative to all cores on host. Spikes during active tasks.)
+jvm_process_cpu_load_ratio * 100
+
+# System CPU % (entire host - Total host CPU load. If high but process CPU is low, something else on the machine is competing)
+jvm_system_cpu_load_ratio * 100
+
+
+# CPU seconds rate (CPU seconds consumed per wall-clock second)
+rate(process_cpu_seconds_total[1m])
+
+# total memory available to BlockManager for storage (cache)
+{__name__=~"metrics_.*_driver_BlockManager_memory_maxMem_MB_Value"}
+
+# remaining free storage memory
+{__name__=~"metrics_.*_driver_BlockManager_memory_remainingMem_MB_Value"}
+
+# equals to sum of ExecutorMetrics.OnHeapStorageMemory
+{__name__=~"metrics_.*_driver_BlockManager_memory_memUsed_MB_Value"}
+
+
+
+# CPU spent deserializing task data from driver (in nano seconds). High value = serialization overhead 
+spark_raw_count{bean_name=~".*executor.deserializeCpuTime.*"}
+
+# Tasks currently running. Should equal executor.cores when fully busy. Less means underutilized executor.
+spark_raw_value{bean_name=~".*executor.threadpool.activeTasks.*"}
+
+# Total ms spent running tasks. Divide by succeededTasks for average task duration. 
+spark_raw_count{bean_name=~".*executor.runTime.*"}
+
+# Jobs currently running. Goes to 0 when job completes. Use to confirm a job is actually in flight.
+{__name__=~"metrics_.*_driver_DAGScheduler_job_activeJobs_Value"}
+
+# Failed stages (should be 0 - Stages that failed after all retries. Non-zero means a real error — check Spark UI for the stack trace)
+{__name__=~"metrics_.*_driver_DAGScheduler_stage_failedStages_Value"}
+
+# Total JVM threads. Should stabilize between jobs. Unbounded growth between runs = thread leak
+jvm_threads_current
+
+jvm_threads_state{state="BLOCKED"}
+
+# shuffle bytes written
+spark_raw_count{bean_name=~".*executor.shuffleBytesWritten.*"}
+
+# shuffle bytes read
+spark_raw_count{bean_name=~".*executor.shuffleTotalBytesRead.*"}
+
+# disk spill — watch this go non-zero when memory is too low
+spark_raw_count{bean_name=~".*executor.diskBytesSpilled.*"}
+
+# memory spill (precedes disk spill - Bytes evicted from memory before hitting disk. If this is growing, disk spill is imminent.)
+spark_raw_count{bean_name=~".*executor.memoryBytesSpilled.*"}
+
+# GC time in ms
+spark_raw_count{bean_name=~".*executor.jvmGCTime.*"}
+
+
+# Succeeded tasks
+spark_raw_count{bean_name=~".*executor.succeededTasks.*"}
+
+# Total ms spent running tasks. Divide by succeededTasks for average task duration.
+spark_raw_count{bean_name=~".*executor.runTime.*"}
+
+# on-heap execution memory used
+spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapExecutionMemory.*"}
+
+spark_raw_value{bean_name=~".*ExecutorMetrics.MajorGCCount.*"}
+
+spark_raw_value{bean_name=~".*ExecutorMetrics.MinorGCCount.*"}
+
+spark_raw_value{bean_name=~".*ExecutorMetrics.MajorGCTime.*"}
+
+spark_raw_value{bean_name=~".*ExecutorMetrics.MinorGCTime.*"}
+
+# total GC time. compare with runtime to get the ratio (what portion of total runtime is spent in GC)
+spark_raw_value{bean_name=~".*ExecutorMetrics.TotalGCTime.*"}
+
+# on-heap used storage memory (cache)
+spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapStorageMemory.*"}
+
+# storage memory usage %
+100 * 
+  spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapStorageMemory.*"}
+  /
+  spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapUnifiedMemory.*"}
+
+# active tasks right now
+spark_raw_value{bean_name=~".*executor.threadpool.activeTasks.*"}
+
+# tasks completed
+spark_raw_value{bean_name=~".*executor.threadpool.completeTasks.*"}
+

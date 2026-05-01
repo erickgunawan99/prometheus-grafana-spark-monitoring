@@ -1,0 +1,4 @@
+ docker exec spark-master /opt/spark/bin/spark-submit \
+ --master spark://spark-master:7077 --num-executors 2  \
+ --executor-memory 1g  \
+ --conf spark.dynamicAllocation.enabled=false /opt/spark/jobs/spark_job.py

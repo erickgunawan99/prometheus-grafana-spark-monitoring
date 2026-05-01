@@ -1,0 +1,144 @@
+# ─────────────────────────────────────────────
+#  Spark + Monitoring Stack
+#  Ports:
+#    8080  → Spark Master Web UI
+#    4040  → Running application UI
+#    8081  → Worker 1 UI
+#    8082  → Worker 2 UI
+#    7071  → JMX exporter (master)
+#    7072  → JMX exporter (worker-1)
+#    7073  → JMX exporter (worker-2)
+#    9090  → Prometheus
+#    3000  → Grafana  (admin/admin)
+# ─────────────────────────────────────────────
+
+services:
+
+  # ── Spark Master ──────────────────────────
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark-master
+    hostname: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_DAEMON_MEMORY=512M
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7071:/opt/jmx_config.yml
+      - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+      - "4040:4040"
+      - "7071:7071"
+    volumes:
+      - ./conf/metrics.properties:/opt/spark/conf/metrics.properties:ro
+      - ./conf/jmx_prometheus_javaagent.jar:/opt/jmx_exporter.jar:ro
+      - ./conf/jmx_config.yml:/opt/jmx_config.yml:ro
+      - ./spark_job/spark_job.py:/opt/spark/jobs/spark_job.py:ro
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master", "--port", "7077"]
+    networks:
+      - spark-net
+
+  # ── Spark Worker 1 ────────────────────────
+  spark-worker-1:
+    image: apache/spark:3.5.0
+    container_name: spark-worker-1
+    hostname: spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_DAEMON_MEMORY=512M
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7072:/opt/jmx_config.yml
+      - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+    ports:
+      - "8081:8081"
+      - "7072:7072"
+      - "7075:7075"
+    volumes:
+      - ./conf/metrics.properties:/opt/spark/conf/metrics.properties:ro
+      - ./conf/jmx_prometheus_javaagent.jar:/opt/jmx_exporter.jar:ro
+      - ./conf/jmx_config.yml:/opt/jmx_config.yml:ro
+    depends_on:
+      - spark-master
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    networks:
+      - spark-net
+
+  # ── Spark Worker 2 ────────────────────────
+  spark-worker-2:
+    image: apache/spark:3.5.0
+    container_name: spark-worker-2
+    hostname: spark-worker-2
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_DAEMON_MEMORY=512M
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7073:/opt/jmx_config.yml
+      - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+    ports:
+      - "8082:8082"
+      - "7073:7073"
+      - "7076:7075"
+    volumes:
+      - ./conf/metrics.properties:/opt/spark/conf/metrics.properties:ro
+      - ./conf/jmx_prometheus_javaagent.jar:/opt/jmx_exporter.jar:ro
+      - ./conf/jmx_config.yml:/opt/jmx_config.yml:ro
+    depends_on:
+      - spark-master
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    networks:
+      - spark-net
+
+  # ── Prometheus ────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./conf/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./conf/spark_alerts.yml:/etc/prometheus/spark_alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - spark-master
+    networks:
+      - spark-net
+
+  # ── Grafana ───────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - spark-net
+
+networks:
+  spark-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,157 @@
+# ─────────────────────────────────────────────────────────────────
+# JMX Prometheus Exporter config for Apache Spark Executors
+# Place this at: conf/jmx_config.yml
+# ─────────────────────────────────────────────────────────────────
+
+startDelaySeconds: 0
+ssl: false
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# whitelistObjectNames:
+#   - "java.lang:type=Memory"
+#   - "java.lang:type=GarbageCollector,*"
+#   - "java.lang:type=Threading"
+#   - "java.lang:type=OperatingSystem"
+#   - "java.lang:type=ClassLoading"
+#   - "java.lang:type=Runtime"
+#   - "java.nio:type=BufferPool,*"
+#   - "metrics:name=*"
+#   - "org.apache.spark:*"
+#   - "java.lang:type=*"
+
+rules:
+  # Catch almost everything Spark puts into JMX
+  - pattern: 'metrics<name=(.+?)><>(Value|Count)'
+    name: spark_raw_$2
+    labels:
+      bean_name: $1
+
+  # JVM metrics
+  - pattern: 'java.lang<type=Memory><HeapMemoryUsage>(\w+)'
+    name: jvm_memory_heap_$1_bytes
+    help: "JVM heap memory usage in bytes"
+    labels:
+      area: heap
+
+  - pattern: 'java.lang<type=Memory><NonHeapMemoryUsage>(\w+)'
+    name: jvm_memory_nonheap_$1_bytes
+    help: "JVM non-heap memory usage in bytes"
+    labels:
+      area: nonheap
+
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionCount'
+    name: jvm_gc_collection_count_total
+    help: "Total number of GC collections"
+    type: COUNTER
+    labels:
+      gc: $1
+
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionTime'
+    name: jvm_gc_collection_seconds_total
+    help: "Total time spent in GC (seconds)"
+    type: COUNTER
+    valueFactor: 0.001
+    labels:
+      gc: $1
+
+  - pattern: 'java.lang<type=Threading><>(\w+ThreadCount)'
+    name: jvm_threads_$1
+    help: "JVM thread counts"
+
+  - pattern: 'java.lang<type=Threading><>TotalStartedThreadCount'
+    name: jvm_threads_started_total
+    type: COUNTER
+
+  - pattern: 'java.lang<type=OperatingSystem><>ProcessCpuLoad'
+    name: jvm_process_cpu_load_ratio
+    help: "Process CPU load (0.0 to 1.0)"
+
+  - pattern: 'java.lang<type=OperatingSystem><>SystemCpuLoad'
+    name: jvm_system_cpu_load_ratio
+    help: "System CPU load (0.0 to 1.0)"
+
+  - pattern: 'java.lang<type=OperatingSystem><>OpenFileDescriptorCount'
+    name: jvm_open_file_descriptors
+    help: "Number of open file descriptors"
+
+  - pattern: 'java.nio<type=BufferPool, name=(.+)><>(\w+)'
+    name: jvm_buffer_pool_$2
+    labels:
+      pool: $1
+
+  # Spark Executor Metrics
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.executor\.(.+)><>Value'
+    name: spark_executor_$3
+    help: "Spark executor metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.executor\.(.+)><>Count'
+    name: spark_executor_$3_total
+    type: COUNTER
+    help: "Spark executor metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  # Shuffle Metrics (this is what you care about most)
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.shuffle\.(.+)><>Value'
+    name: spark_shuffle_$3
+    help: "Spark shuffle metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.shuffle\.(.+)><>Count'
+    name: spark_shuffle_$3_total
+    type: COUNTER
+    help: "Spark shuffle metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  # Task Metrics
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.executor\.task\.(.+)><>Value'
+    name: spark_task_$3
+    help: "Spark task metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  - pattern: 'metrics<name=(.+?)\.(\d+)\.executor\.task\.(.+)><>Count'
+    name: spark_task_$3_total
+    type: COUNTER
+    help: "Spark task metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  # Broader patterns (BlockManager, ExecutorMetrics, etc.)
+  - pattern: 'metrics<name=(.+?)\.(\d+|\<driver\>)\.(.+?)\.(.+)><>Value'
+    name: spark_$3_$4
+    help: "Spark metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  - pattern: 'metrics<name=(.+?)\.(\d+|\<driver\>)\.(.+?)\.(.+)><>Count'
+    name: spark_$3_$4_total
+    type: COUNTER
+    help: "Spark metric"
+    labels:
+      app_id: $1
+      executor_id: $2
+
+  # Catch-all (keep at the very bottom)
+  - pattern: 'metrics<name=(.+)><>Value'
+    name: spark_metric_value
+    labels:
+      full_name: $1
+
+  - pattern: 'metrics<name=(.+)><>Count'
+    name: spark_metric_count_total
+    type: COUNTER
+    labels:
+      full_name: $1

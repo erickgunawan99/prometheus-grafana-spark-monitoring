@@ -1,0 +1,93 @@
+# ─────────────────────────────────────────────────────────────────
+#  Spark Alert Rules for Prometheus
+#  Placed at: conf/spark_alerts.yml
+# ─────────────────────────────────────────────────────────────────
+
+groups:
+  - name: spark_availability
+    rules:
+
+      - alert: SparkMasterDown
+        expr: up{job="spark-master"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spark Master is unreachable"
+          description: "Prometheus cannot scrape spark-master:7071. Check if the container is running."
+
+      - alert: SparkWorkerDown
+        expr: up{job="spark-workers"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spark Worker {{ $labels.instance }} is down"
+          description: "Worker {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+  - name: spark_jvm_health
+    rules:
+
+      - alert: SparkHighHeapUsage
+        expr: >
+          100 * jvm_memory_heap_used_bytes
+              / jvm_memory_heap_max_bytes > 85
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High heap usage on {{ $labels.instance }}"
+          description: "Heap is {{ $value | printf \"%.1f\" }}% full on {{ $labels.instance }}. Risk of OOM."
+
+      - alert: SparkHeapCritical
+        expr: >
+          100 * jvm_memory_heap_used_bytes
+              / jvm_memory_heap_max_bytes > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical heap usage on {{ $labels.instance }}"
+          description: "Heap is {{ $value | printf \"%.1f\" }}% — OOM imminent on {{ $labels.instance }}."
+
+      - alert: SparkHighGCPause
+        expr: >
+          rate(jvm_gc_collection_seconds_total[5m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GC pause rate on {{ $labels.instance }}"
+          description: "GC is consuming {{ $value | printf \"%.2f\" }}s/s on {{ $labels.instance }}. Check heap sizing."
+
+      - alert: SparkTooManyThreads
+        expr: jvm_threads_ThreadCount > 500
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Thread count high on {{ $labels.instance }}"
+          description: "{{ $value }} threads active on {{ $labels.instance }}."
+
+  - name: spark_executor_health
+    rules:
+
+      - alert: SparkExecutorFailedTasks
+        expr: >
+          rate(spark_executor_failedtasks[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Executor task failures on {{ $labels.instance }}"
+          description: "{{ $value | printf \"%.2f\" }} tasks/s failing on {{ $labels.instance }}."
+
+      - alert: SparkDiskSpill
+        expr: >
+          increase(spark_executor_diskbytesspilled[10m]) > 1073741824
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spark spilling to disk on {{ $labels.instance }}"
+          description: "More than 1GB spilled to disk in the last 10 minutes — consider increasing executor memory."

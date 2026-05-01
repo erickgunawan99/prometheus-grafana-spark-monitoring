@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────
+#  Prometheus Configuration
+#  Placed at: conf/prometheus.yml
+# ─────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval: 15s         # Pull metrics every 15s
+  evaluation_interval: 15s     # Evaluate alert rules every 15s
+  scrape_timeout: 10s
+
+  external_labels:
+    cluster: 'spark-docker'
+    environment: 'local'
+
+# Alert rules file
+rule_files:
+  - "/etc/prometheus/spark_alerts.yml"
+
+scrape_configs:
+
+  # ── Spark Master (JMX exporter) ──────────────────────────────
+  - job_name: 'spark-master'
+    static_configs:
+      - targets: ['spark-master:7071']
+        labels:
+          role: 'master'
+          instance: 'spark-master'
+
+  # ── Spark Workers (JMX exporter) ─────────────────────────────
+  - job_name: 'spark-workers'
+    static_configs:
+      - targets:
+          - 'spark-worker-1:7072'
+          - 'spark-worker-2:7073'
+    relabel_configs:
+      # Extract hostname as worker label
+      - source_labels: [__address__]
+        regex: '(.+):\d+'
+        target_label: worker
+        replacement: '$1'
+      - source_labels: [__address__]
+        target_label: instance
+
+  # ── Spark Application UI (native Prometheus servlet) ──────────
+  # Only active while an application is running on port 4040.
+  # Uses honor_labels so Spark's own metric labels are preserved.
+  - job_name: 'spark-app'
+    honor_labels: true
+    metrics_path: '/metrics/prometheus'
+    static_configs:
+      - targets: ['spark-master:4040']
+    metric_relabel_configs:
+      # Add a label to identify the application
+      - source_labels: [__name__]
+        target_label: job_id
+        replacement: 'sparkJob1'
+      - source_labels: [instance]
+        target_label: instance
+        replacement: 'fixed-instance'
+
+  - job_name: 'spark-executors'
+    static_configs:
+      - targets:
+          - 'spark-worker-1:7075'
+          - 'spark-worker-2:7075'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: 
+          - 'localhost:9090'
