@@ -1,7 +1,7 @@
-docker compose up -d
-copy run_spark_job.txt and paste it into terminal
-paste all the prometheus_query.txt into grafana dashboard (localhost:3000)
-explore more on :
+* docker compose up -d
+* copy run_spark_job.txt and paste it into terminal
+* paste all the prometheus_query.txt into grafana dashboard (localhost:3000)
+* explore more on :
   - prometheus UI (localhost:9090)
   - spark master metrics complete list (localhost:8080/metrics/master/prometheus/)
   - spark worker 1 (localhost:/8081/metrics/worker/prometehus/)
