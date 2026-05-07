@@ -3,14 +3,12 @@ from pyspark.sql.functions import col, count, sum as _sum, sqrt, sin, avg
 import time
 
 spark = SparkSession.builder \
-    .appName("SlowBenchmark") \
-    .config("spark.executor.extraJavaOptions", 
-            "-javaagent:/opt/jmx_exporter.jar=7075:/opt/jmx_config.yml") \
+    .appName("SparkJob") \
+    .config("spark.executor.cores", "1") \
+    .config("spark.executor.instances", "4") \
     .config("spark.dynamicAllocation.enabled", "false") \
-    .config("spark.network.timeout", "60s") \
-    .config("spark.executor.heartbeatInterval", "30s")\
+    .config("spark.executor.memory", "1g") \
     .getOrCreate()
-
 spark.sparkContext.setLogLevel("WARN")
 
 print("=" * 60)

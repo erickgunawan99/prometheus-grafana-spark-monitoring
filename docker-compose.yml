@@ -26,8 +26,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_DAEMON_MEMORY=512M
-      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7071:/opt/jmx_config.yml
       - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7071:/opt/jmx_config.yml
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -51,10 +51,11 @@ services:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=2g
       - SPARK_DAEMON_MEMORY=512M
-      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7072:/opt/jmx_config.yml
       - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7072:/opt/jmx_config.yml
     ports:
       - "8081:8081"
       - "7072:7072"
@@ -78,10 +79,12 @@ services:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_WORKER_CORES=2
       - SPARK_WORKER_MEMORY=2g
       - SPARK_DAEMON_MEMORY=512M
-      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7073:/opt/jmx_config.yml
       - SPARK_METRICS_CONF=/opt/spark/conf/metrics.properties
+      - SPARK_WORKER_WEBUI_PORT=8082
+      - SPARK_DAEMON_JAVA_OPTS=-javaagent:/opt/jmx_exporter.jar=7073:/opt/jmx_config.yml
     ports:
       - "8082:8082"
       - "7073:7073"

@@ -2,24 +2,37 @@
 up
 
 # heap usage % per instance (idle and used, idle will be low like 7-8%)
-100 * jvm_memory_heap_used_bytes / jvm_memory_heap_max_bytes
+100 * jvm_memory_heap_used_bytes / jvm_memory_heap_max_bytes      #jmx
+or
+100 * metrics_jvm_heap_used_Value / metrics_jvm_heap_max_Value    #servlet (ui)
+
 
 # raw heap used in MB (heap memory of each instance - heap is process + overhead)
-jvm_memory_heap_used_bytes / 1024 / 1024
+jvm_memory_heap_used_bytes / 1024 / 1024      #jmx
+or
+metrics_jvm_heap_used_Number / 1024 / 1024    #servlet (ui)
 
-# GC
+# GC thru jmx scrape directly from spark beans
 jvm_gc_collection_seconds_sum
 jvm_gc_collection_seconds_count
+
+# GC servlet versions (ui)
+metrics_jvm_G1_Young_Generation_count_Value
+metrics_jvm_G1_Young_Generation_time_Value   # in milliseconds
+metrics_jvm_G1_Old_Generation_count_Value
+metrics_jvm_G1_Old_Generation_time_Value
 
 # thread count
 jvm_threads_ThreadCount
 
-# off-heap memory for i/o (transfering data between nodes, serializing, netty, shuffle)
-jvm_buffer_pool_capacity_bytes
-
 # useful during job how much of that direct buffer is actively being used for data transfer
 # it spikes during shuffle operations when workers are exchanging data with each other.
+jvm_buffer_pool_capacity_bytes{pool="direct"}
 jvm_buffer_pool_used_bytes{pool="direct"}
+
+# the servlet versions
+metrics_jvm_direct_capacity_Value
+metrics_jvm_direct_used_Value
 
 # Process CPU % (JVM process only - CPU % used by this JVM process relative to all cores on host. Spikes during active tasks.)
 jvm_process_cpu_load_ratio * 100
@@ -27,9 +40,16 @@ jvm_process_cpu_load_ratio * 100
 # System CPU % (entire host - Total host CPU load. If high but process CPU is low, something else on the machine is competing)
 jvm_system_cpu_load_ratio * 100
 
+# Total JVM threads. Should stabilize between jobs. Unbounded growth between runs = thread leak
+jvm_threads_current
 
-# CPU seconds rate (CPU seconds consumed per wall-clock second)
-rate(process_cpu_seconds_total[1m])
+jvm_threads_state
+jvm_threads_state{state="NEW"}
+jvm_threads_state{state="RUNNABLE"}
+jvm_threads_state{state="BLOCKED"}
+jvm_threads_state{state="WAITING"}
+jvm_threads_state{state="TIMED_WAITING"}
+jvm_threads_state{state="TERMINATED"}
 
 # total memory available to BlockManager for storage (cache)
 {__name__=~"metrics_.*_driver_BlockManager_memory_maxMem_MB_Value"}
@@ -40,76 +60,71 @@ rate(process_cpu_seconds_total[1m])
 # equals to sum of ExecutorMetrics.OnHeapStorageMemory
 {__name__=~"metrics_.*_driver_BlockManager_memory_memUsed_MB_Value"}
 
-
-
-# CPU spent deserializing task data from driver (in nano seconds). High value = serialization overhead 
-spark_raw_count{bean_name=~".*executor.deserializeCpuTime.*"}
-
-# Tasks currently running. Should equal executor.cores when fully busy. Less means underutilized executor.
-spark_raw_value{bean_name=~".*executor.threadpool.activeTasks.*"}
-
-# Total ms spent running tasks. Divide by succeededTasks for average task duration. 
-spark_raw_count{bean_name=~".*executor.runTime.*"}
-
-# Jobs currently running. Goes to 0 when job completes. Use to confirm a job is actually in flight.
+# Active jobs and failed stages (these come from the driver metrics servlet)
 {__name__=~"metrics_.*_driver_DAGScheduler_job_activeJobs_Value"}
-
-# Failed stages (should be 0 - Stages that failed after all retries. Non-zero means a real error — check Spark UI for the stack trace)
 {__name__=~"metrics_.*_driver_DAGScheduler_stage_failedStages_Value"}
 
-# Total JVM threads. Should stabilize between jobs. Unbounded growth between runs = thread leak
-jvm_threads_current
+# application metrics
+{__name__=~"metrics_application_.*._runtime_ms_Value"}
+{__name__=~"metrics_application_.*._cores_Value"}
 
-jvm_threads_state{state="BLOCKED"}
+
+# JVM heap memory per executor
+metrics_executor_JVMHeapMemory_bytes{executor_id!="driver"}
+
+##CPU spent deserializing task data from driver (in nano seconds). High value = serialization overhead 
+##spark_raw_count{bean_name=~".*executor.deserializeCpuTime.*"} - no equivalent in servlet, still figuring out
+
+# Tasks currently running. Should equal executor.cores when fully busy. Less means underutilized executor.
+metrics_executor_activeTasks{application_id=~".*", executor_id!="driver"}
 
 # shuffle bytes written
-spark_raw_count{bean_name=~".*executor.shuffleBytesWritten.*"}
+metrics_executor_totalShuffleWrite_bytes_total{executor_id!="driver"}
 
 # shuffle bytes read
-spark_raw_count{bean_name=~".*executor.shuffleTotalBytesRead.*"}
+metrics_executor_totalShuffleRead_bytes_total{executor_id!="driver"}
 
 # disk spill — watch this go non-zero when memory is too low
-spark_raw_count{bean_name=~".*executor.diskBytesSpilled.*"}
+metrics_executor_diskUsed_bytes{executor_id!="driver"}
 
 # memory spill (precedes disk spill - Bytes evicted from memory before hitting disk. If this is growing, disk spill is imminent.)
-spark_raw_count{bean_name=~".*executor.memoryBytesSpilled.*"}
+metrics_executor_usedOnHeapStorageMemory_bytes{executor_id!="driver"}
 
-# GC time in ms
-spark_raw_count{bean_name=~".*executor.jvmGCTime.*"}
+# GC time
+metrics_executor_totalGCTime_seconds_total{executor_id!="driver"}
 
-
-# Succeeded tasks
-spark_raw_count{bean_name=~".*executor.succeededTasks.*"}
+# GC ratio to total runtime
+metrics_executor_totalGCTime_seconds_total{executor_id!="driver"}
+/ metrics_executor_totalDuration_seconds_total{executor_id!="driver"}
 
 # Total ms spent running tasks. Divide by succeededTasks for average task duration.
-spark_raw_count{bean_name=~".*executor.runTime.*"}
+metrics_executor_totalDuration_seconds_total{executor_id!="driver"}
+
+metrics_executor_totalDuration_seconds_total{executor_id!="driver"}
+/ metrics_executor_completedTasks_total{executor_id!="driver"}
 
 # on-heap execution memory used
-spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapExecutionMemory.*"}
+metrics_executor_OnHeapExecutionMemory_bytes{executor_id!="driver"}
 
-spark_raw_value{bean_name=~".*ExecutorMetrics.MajorGCCount.*"}
-
-spark_raw_value{bean_name=~".*ExecutorMetrics.MinorGCCount.*"}
-
-spark_raw_value{bean_name=~".*ExecutorMetrics.MajorGCTime.*"}
-
-spark_raw_value{bean_name=~".*ExecutorMetrics.MinorGCTime.*"}
+# GC
+metrics_executor_MinorGCCount_total{executor_id!="driver"}
+metrics_executor_MinorGCTime_seconds_total{executor_id!="driver"}
+metrics_executor_MajorGCCount_total{executor_id!="driver"}
+metrics_executor_MajorGCTime_seconds_total{executor_id!="driver"}
 
 # total GC time. compare with runtime to get the ratio (what portion of total runtime is spent in GC)
 spark_raw_value{bean_name=~".*ExecutorMetrics.TotalGCTime.*"}
 
 # on-heap used storage memory (cache)
-spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapStorageMemory.*"}
+metrics_executor_OnHeapStorageMemory_bytes{executor_id!="driver"}
 
 # storage memory usage %
-100 * 
-  spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapStorageMemory.*"}
-  /
-  spark_raw_value{bean_name=~".*ExecutorMetrics.OnHeapUnifiedMemory.*"}
+100 * metrics_executor_OnHeapStorageMemory_bytes{executor_id!="driver"}
+    / metrics_executor_maxMemory_bytes{executor_id!="driver"}
 
 # active tasks right now
-spark_raw_value{bean_name=~".*executor.threadpool.activeTasks.*"}
+metrics_executor_activeTasks{application_id=~".*", executor_id!="driver"}
 
 # tasks completed
-spark_raw_value{bean_name=~".*executor.threadpool.completeTasks.*"}
+metrics_executor_completedTasks_total{executor_id!="driver"}
 

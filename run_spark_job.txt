@@ -1,4 +1,15 @@
  docker exec spark-master /opt/spark/bin/spark-submit \
  --master spark://spark-master:7077 --num-executors 2  \
  --executor-memory 1g  \
+ --executor-cores 1 \ 
  --conf spark.dynamicAllocation.enabled=false /opt/spark/jobs/spark_job.py
+
+  docker exec spark-master /opt/spark/bin/spark-submit \
+ --master spark://spark-master:7077 --num-executors 4  \
+ --executor-memory 1g  \
+ --executor-cores 1 \ 
+ --conf spark.dynamicAllocation.enabled=false \
+ --conf spark.ui.prometheus.enabled=true \
+--conf spark.metrics.staticSources.enabled=true \
+--conf spark.metrics.appStatusSource.enabled=true \
+/opt/spark/jobs/spark_job.py
