@@ -4,10 +4,7 @@ import time
 
 spark = SparkSession.builder \
     .appName("SparkJob") \
-    .config("spark.executor.cores", "1") \
-    .config("spark.executor.instances", "4") \
     .config("spark.dynamicAllocation.enabled", "false") \
-    .config("spark.executor.memory", "1g") \
     .getOrCreate()
 spark.sparkContext.setLogLevel("WARN")
 

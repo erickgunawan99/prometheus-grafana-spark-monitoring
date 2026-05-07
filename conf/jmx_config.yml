@@ -1,27 +1,9 @@
-# ─────────────────────────────────────────────────────────────────
-# JMX Prometheus Exporter config for Apache Spark Executors
-# Place this at: conf/jmx_config.yml
-# ─────────────────────────────────────────────────────────────────
-
 startDelaySeconds: 0
 ssl: false
 lowercaseOutputName: true
 lowercaseOutputLabelNames: true
 
-# whitelistObjectNames:
-#   - "java.lang:type=Memory"
-#   - "java.lang:type=GarbageCollector,*"
-#   - "java.lang:type=Threading"
-#   - "java.lang:type=OperatingSystem"
-#   - "java.lang:type=ClassLoading"
-#   - "java.lang:type=Runtime"
-#   - "java.nio:type=BufferPool,*"
-#   - "metrics:name=*"
-#   - "org.apache.spark:*"
-#   - "java.lang:type=*"
-
 rules:
-
   # JVM metrics
   - pattern: 'java.lang<type=Memory><HeapMemoryUsage>(\w+)'
     name: jvm_memory_heap_$1_bytes
